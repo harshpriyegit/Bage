@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
 const dir=mkdtempSync(path.join(tmpdir(),'command-center-test-'));
-process.env.DATA_DIR=dir;
+process.env.DATA_DIR=dir;process.env.RESET_CODE='2429';
 const {app}=await import('./index.js');
 const {db}=await import('./db.js');
 const server=app.listen(0,'127.0.0.1');
@@ -111,6 +111,13 @@ await req('/private/unlock',{password:'PrivateAccess123!'});
 db.prepare('UPDATE sessions SET private_until=0').run();assert.equal((await req('/sales/calls')).status,423);
 await req(`/work/tasks/${id}`,undefined,'DELETE');assert.equal((await req('/work/tasks')).data.length,0);
 await req('/logout',{});assert.equal((await req('/me')).status,401);
+// Forgot password with the secret code
+assert.equal((await req('/reset-password',{email:'admin@example.com',code:'0000',password:'BrandNewPass123!'})).status,401);
+assert.equal((await req('/reset-password',{email:'admin@example.com',code:'2429',password:'short'})).status,400);
+assert.equal((await req('/reset-password',{email:'admin@example.com',code:'2429',password:'PrivateAccess123!'})).status,400,'cannot reuse the private password');
+assert.equal((await req('/reset-password',{email:'admin@example.com',code:'2429',password:'BrandNewPass123!'})).status,200);
+assert.equal((await req('/login',{email:'admin@example.com',password:'TestAccount123!'})).status,401,'old password stops working');
+assert.equal((await req('/login',{email:'admin@example.com',password:'BrandNewPass123!'})).status,200);
 });
 test('call proof text parser',async()=>{
 const {parseCallLogText,parseDuration}=await import('./callProofParser.js');

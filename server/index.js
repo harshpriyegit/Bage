@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import multer from 'multer';
 import * as XLSX from 'xlsx';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,8 @@ import { parseLeadSources } from './leadParser.js';
 import { ocrImage, parseCallLogText } from './callProofParser.js';
 import { transcribe, loadTranscriber, modelCacheDir, SAMPLE_RATE } from './transcriber.js';
 let voiceReady=false;
+// Local secrets (e.g. RESET_CODE) live in .env, which is git-ignored. On Render, set them under Environment.
+try { process.loadEnvFile(); } catch {}
 export const app = express();
 // Behind a reverse proxy (Caddy on the server) the real client IP is in X-Forwarded-For; needed for rate limiting.
 if(process.env.TRUST_PROXY)app.set('trust proxy',1);
@@ -38,6 +40,17 @@ app.post('/api/login',authLimit,(req,res)=>{const b=z.object({email:z.string().e
  if(!get('SELECT 1 FROM memberships WHERE user_id=? AND workspace=?',user.id,b.workspace)) fail(403,'You do not have access to this workspace');
  if(b.workspace==='algorics' && !verifyPassword(b.privatePassword||'',user.private_password)) fail(401,'Invalid private access password');
  const session=issueSession(res,user); let privateUntil=0; if(b.workspace==='algorics'){privateUntil=Date.now()+15*60000;run('UPDATE sessions SET private_until=? WHERE user_id=? AND csrf=?',privateUntil,user.id,session.csrf);} res.json({...session,workspace:b.workspace,privateUntil});});
+// Forgot password: anyone holding the secret RESET_CODE (env only, never in the repo) can set a new password.
+// Strictly rate limited because short codes are guessable; disabled entirely when RESET_CODE is not set.
+const resetLimit = rateLimit({windowMs:15*60*1000,limit:5,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many attempts. Try again in 15 minutes.'}});
+const sameSecret = (a,b) => timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
+app.post('/api/reset-password',resetLimit,(req,res)=>{const code=process.env.RESET_CODE;if(!code)fail(404,'Password reset is not enabled on this server');
+ const b=z.object({email:z.string().email(),code:z.string().max(128),password:z.string().min(12,'New password must be at least 12 characters').max(128),which:z.enum(['login','private']).default('login')}).parse(req.body);
+ const user=get('SELECT * FROM users WHERE email=? AND status=?',b.email.toLowerCase(),'Active');
+ if(!sameSecret(b.code,code)||!user)fail(401,'Invalid email or secret code');
+ if(verifyPassword(b.password,b.which==='login'?user.private_password:user.password))fail(400,'Use different passwords for account and private access');
+ run(`UPDATE users SET ${b.which==='login'?'password':'private_password'}=? WHERE id=?`,hashPassword(b.password),user.id);
+ run('DELETE FROM sessions WHERE user_id=?',user.id);res.json({ok:true});});
 app.use('/api',(req,res,next)=>{const raw=req.headers.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith('session='))?.slice(8);const session=raw && get('SELECT * FROM sessions WHERE token=? AND expires>?',tokenHash(raw),Date.now());if(!session)return res.status(401).json({error:'Please sign in'});const user=get('SELECT * FROM users WHERE id=? AND status=?',session.user_id,'Active');if(!user)return res.status(401).json({error:'Account unavailable'});req.session=session;req.user=user;if(!['GET','HEAD'].includes(req.method) && req.headers['x-csrf-token']!==session.csrf)return res.status(403).json({error:'Invalid request token'});next();});
 const workspacesOf=id=>all('SELECT workspace FROM memberships WHERE user_id=?',id).map(r=>r.workspace);
 app.get('/api/me',(req,res)=>res.json({user:{...publicUser(req.user),workspaces:workspacesOf(req.user.id)},csrf:req.session.csrf,privateUntil:req.session.private_until>Date.now()?req.session.private_until:0}));

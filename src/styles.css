@@ -184,3 +184,5 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 [data-theme=dark] .glass-theme .panel,[data-theme=dark] .glass-theme .metric-grid,[data-theme=dark] .glass-theme .board-column,[data-theme=dark] .glass-theme .sidebar,[data-theme=dark] .glass-theme .topbar{text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .glass-theme .board-card[class*=st-]{text-shadow:none}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.auth-link{background:none;border:0;padding:4px 0;margin-top:2px;color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px;align-self:center}.auth-link:hover{color:var(--text)}.auth-notice{padding:10px 12px;border-radius:9px;font-size:13px;color:#166534;background:#dcfce7cc;border:1px solid #86efac}
