@@ -10,7 +10,8 @@
     "dev": "concurrently -k \"node --watch server/index.js\" \"vite --host 0.0.0.0\"",
     "build": "tsc -b && vite build",
     "start": "node server/index.js",
-    "test": "node --test server/test.js"
+    "test": "node --test server/test.js",
+    "reset-password": "node server/reset-password.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.2",
