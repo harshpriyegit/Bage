@@ -1,0 +1,27 @@
+# Render Blueprint for Bage. In Render: New + -> Blueprint -> pick this repo.
+# A persistent disk keeps the SQLite database, uploads and AI models across restarts and deploys.
+# Disks need a paid instance type (starter or higher); the free plan has no disk and would wipe accounts.
+services:
+  - type: web
+    name: bage
+    runtime: node
+    plan: starter
+    region: singapore
+    # --include=dev: TypeScript and Vite are devDependencies but are needed for the build.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    # Public endpoint that needs no login (/api/me returns 401 when signed out).
+    healthCheckPath: /api/bootstrap
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATA_DIR
+        value: /var/data
+      - key: TRUST_PROXY
+        value: "1"
+    disk:
+      name: bage-data
+      mountPath: /var/data
+      sizeGB: 1
