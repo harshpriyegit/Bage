@@ -14,6 +14,8 @@ import { ocrImage, parseCallLogText } from './callProofParser.js';
 import { transcribe, loadTranscriber, modelCacheDir, SAMPLE_RATE } from './transcriber.js';
 let voiceReady=false;
 export const app = express();
+// Behind a reverse proxy (Caddy on the server) the real client IP is in X-Forwarded-For; needed for rate limiting.
+if(process.env.TRUST_PROXY)app.set('trust proxy',1);
 app.use(helmet({contentSecurityPolicy:{directives:{'script-src':["'self'"], 'img-src':["'self'",'data:','blob:'], 'connect-src':["'self'"], 'style-src':["'self'",'https://fonts.googleapis.com'], 'font-src':["'self'",'https://fonts.gstatic.com']}}}));
 app.use(express.json({limit:'2mb'}));
 const uploadDir = path.join(dataDir,'uploads'); mkdirSync(uploadDir,{recursive:true});
